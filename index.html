@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Song Timer</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #eef0f4;
+    --muted: #9aa2b1;
+    --accent: #ff4d4d;
+    --accent-2: #4d8dff;
+    --good: #3ddc84;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 48px 24px;
+    position: relative;
+  }
+  .bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    background: #0a0b0f;
+  }
+  .blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(110px);
+    opacity: 0.5;
+    animation: drift 28s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  .blob-a {
+    width: 560px; height: 560px;
+    top: -180px; left: -160px;
+    background: radial-gradient(circle, var(--accent), transparent 70%);
+  }
+  .blob-b {
+    width: 600px; height: 600px;
+    bottom: -200px; right: -180px;
+    background: radial-gradient(circle, var(--accent-2), transparent 70%);
+    animation-delay: -9s;
+  }
+  .blob-c {
+    width: 440px; height: 440px;
+    top: 45%; left: 58%;
+    background: radial-gradient(circle, var(--good), transparent 70%);
+    animation-delay: -18s;
+  }
+  @keyframes drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(50px, -40px) scale(1.1); }
+    100% { transform: translate(-40px, 30px) scale(0.94); }
+  }
+  .card {
+    width: 100%;
+    max-width: 440px;
+    background: rgba(23, 26, 33, 0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  h1 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+  }
+  .clock {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-size: 56px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin: 8px 0 20px;
+  }
+  .duration-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .duration-row button {
+    flex: 1;
+    padding: 8px 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .duration-row button:hover { color: var(--text); border-color: var(--accent-2); }
+  .duration-row button.active { color: var(--text); border-color: var(--accent-2); background: #1c2536; }
+  .custom-duration {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .custom-duration input {
+    width: 52px;
+    text-align: center;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 6px 4px;
+    font-size: 14px;
+  }
+  .custom-duration span { color: var(--muted); font-size: 13px; }
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .controls button {
+    flex: 1;
+    padding: 12px 0;
+    border-radius: 12px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #startBtn { background: var(--accent); color: white; }
+  #startBtn:hover { background: #ff6666; }
+  #resetBtn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  #resetBtn:hover { border-color: var(--accent-2); }
+  .status {
+    min-height: 18px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    margin: 14px 0 4px;
+  }
+  .status.error { color: var(--accent); }
+  .status.good { color: var(--good); }
+  .settings-section {
+    margin-top: 18px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  .settings-title {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  .settings-body { display: flex; flex-direction: column; gap: 12px; }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+  input[type="text"] {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+  input[type="range"] { width: 100%; }
+  .save-row { display: flex; gap: 8px; align-items: center; }
+  .save-row button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .save-row button:hover { border-color: var(--accent-2); }
+  .hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .player-wrap {
+    margin-top: 16px;
+    display: none;
+  }
+  .player-wrap.visible { display: block; }
+  #player { width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; }
+  .player-controls { display: flex; gap: 8px; margin-top: 8px; }
+  .player-controls button {
+    flex: 1;
+    padding: 8px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .player-controls button:hover { border-color: var(--accent-2); }
+</style>
+</head>
+<body>
+
+<div class="bg" aria-hidden="true">
+  <span class="blob blob-a"></span>
+  <span class="blob blob-b"></span>
+  <span class="blob blob-c"></span>
+</div>
+
+<div class="card">
+  <h1>🎵 Random Song Timer</h1>
+
+  <div class="clock" id="clock">1:00:00</div>
+
+  <div class="duration-row" id="presets">
+    <button data-sec="300">5m</button>
+    <button data-sec="3600" class="active">1h</button>
+    <button data-sec="5400">1h30</button>
+    <button data-sec="7200">2h</button>
+  </div>
+
+  <div class="custom-duration">
+    <input type="number" id="minInput" min="0" max="240" value="60">
+    <span>min</span>
+    <input type="number" id="secInput" min="0" max="59" value="0">
+    <span>sec</span>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn">Start</button>
+    <button id="resetBtn">Reset</button>
+  </div>
+
+  <div class="status" id="status">Add a YouTube playlist below, then hit Start.</div>
+
+  <div class="player-wrap" id="playerWrap">
+    <div id="player"></div>
+    <div class="player-controls">
+      <button id="skipBtn">🔀 Another random song</button>
+      <button id="stopSongBtn">⏹ Stop song</button>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <p class="settings-title">Playlist &amp; volume</p>
+    <div class="settings-body">
+      <div>
+        <label for="playlistInput">YouTube / YouTube Music playlist link or ID</label>
+        <input type="text" id="playlistInput" placeholder="https://music.youtube.com/playlist?list=PL...">
+      </div>
+      <div class="save-row">
+        <button id="saveBtn">Save &amp; load playlist</button>
+        <button id="testBtn">Test random song</button>
+      </div>
+      <div>
+        <label for="volumeInput">Volume</label>
+        <input type="range" id="volumeInput" min="0" max="100" value="70">
+      </div>
+      <div class="hint">
+        The playlist must be <strong>Public</strong> or <strong>Unlisted</strong> (not Private) for it to load here.
+        In YouTube Music: open a playlist → ⋯ → Share → Copy link, then paste it above. This also works with
+        regular YouTube playlist links.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const clockEl = document.getElementById('clock');
+  const startBtn = document.getElementById('startBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const statusEl = document.getElementById('status');
+  const minInput = document.getElementById('minInput');
+  const secInput = document.getElementById('secInput');
+  const presets = document.getElementById('presets');
+  const playlistInput = document.getElementById('playlistInput');
+  const saveBtn = document.getElementById('saveBtn');
+  const testBtn = document.getElementById('testBtn');
+  const volumeInput = document.getElementById('volumeInput');
+  const playerWrap = document.getElementById('playerWrap');
+  const skipBtn = document.getElementById('skipBtn');
+  const stopSongBtn = document.getElementById('stopSongBtn');
+
+  const STORAGE_KEY = 'randomSongTimer.settings.v1';
+  let settings = { playlistId: '', volume: 70 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    settings = Object.assign(settings, saved);
+  } catch (e) {}
+
+  volumeInput.value = settings.volume;
+  if (settings.playlistId) playlistInput.value = settings.playlistId;
+
+  let totalSeconds = 60 * 60;
+  let remainingSeconds = totalSeconds;
+  let intervalId = null;
+  let running = false;
+
+  let player = null;
+  let playerReady = false;
+  let playlistLoaded = false;
+  let primed = false;
+
+  function persist() {
+    settings.volume = Number(volumeInput.value);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
+
+  function formatTime(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return h > 0 ? h + ':' + m + ':' + sec : m + ':' + sec;
+  }
+
+  function updateClock() {
+    clockEl.textContent = formatTime(remainingSeconds);
+    document.title = running ? formatTime(remainingSeconds) + ' — Random Song Timer' : 'Random Song Timer';
+  }
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function readDurationFromInputs() {
+    const m = Math.max(0, Math.min(240, Number(minInput.value) || 0));
+    const s = Math.max(0, Math.min(59, Number(secInput.value) || 0));
+    return m * 60 + s;
+  }
+
+  presets.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-sec]');
+    if (!btn) return;
+    [...presets.children].forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const sec = Number(btn.dataset.sec);
+    minInput.value = Math.floor(sec / 60);
+    secInput.value = sec % 60;
+    if (!running) {
+      remainingSeconds = readDurationFromInputs();
+      updateClock();
+    }
+  });
+
+  [minInput, secInput].forEach(inp => inp.addEventListener('change', () => {
+    [...presets.children].forEach(b => b.classList.remove('active'));
+    if (!running) {
+      remainingSeconds = readDurationFromInputs();
+      updateClock();
+    }
+  }));
+
+  function extractPlaylistId(raw) {
+    const value = raw.trim();
+    if (!value) return '';
+    try {
+      const url = new URL(value);
+      const listParam = url.searchParams.get('list');
+      if (listParam) return listParam;
+    } catch (e) {
+      // not a URL, treat as raw ID
+    }
+    return value;
+  }
+
+  function ensurePlayer(cb) {
+    if (playerReady) { cb(); return; }
+    const check = setInterval(() => {
+      if (playerReady) {
+        clearInterval(check);
+        cb();
+      }
+    }, 150);
+  }
+
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player('player', {
+      playerVars: { autoplay: 0, controls: 1, rel: 0, modestbranding: 1 },
+      events: {
+        onReady: () => {
+          playerReady = true;
+          if (settings.playlistId) loadPlaylist(settings.playlistId, true);
+        },
+        onError: () => {
+          setStatus('YouTube reported an error loading that video/playlist.', 'error');
+        }
+      }
+    });
+  };
+
+  function loadPlaylist(id, silent) {
+    ensurePlayer(() => {
+      playlistLoaded = false;
+      player.cuePlaylist({ listType: 'playlist', list: id });
+      if (!silent) setStatus('Loading playlist…');
+      const checkLoaded = setInterval(() => {
+        const list = player.getPlaylist();
+        if (list && list.length > 0) {
+          clearInterval(checkLoaded);
+          clearTimeout(failTimer);
+          playlistLoaded = true;
+          setStatus(`Playlist ready — ${list.length} songs loaded.`, 'good');
+        }
+      }, 400);
+      const failTimer = setTimeout(() => {
+        clearInterval(checkLoaded);
+        if (!playlistLoaded) {
+          setStatus('Couldn’t load that playlist. Double-check it’s Public or Unlisted, not Private, and that the link/ID is correct.', 'error');
+        }
+      }, 7000);
+    });
+  }
+
+  saveBtn.addEventListener('click', () => {
+    const id = extractPlaylistId(playlistInput.value);
+    if (!id) {
+      setStatus('Paste a playlist link or ID first.', 'error');
+      return;
+    }
+    settings.playlistId = id;
+    persist();
+    loadPlaylist(id, false);
+  });
+
+  volumeInput.addEventListener('change', persist);
+
+  function primeAutoplay(cb) {
+    if (primed) { cb && cb(); return; }
+    ensurePlayer(() => {
+      try {
+        player.mute();
+        player.playVideo();
+        setTimeout(() => {
+          player.pauseVideo();
+          player.seekTo(0, true);
+          primed = true;
+          cb && cb();
+        }, 250);
+      } catch (e) {
+        primed = true;
+        cb && cb();
+      }
+    });
+  }
+
+  function playRandomSong() {
+    if (!playerReady) {
+      setStatus('Player is still loading, try again in a moment.', 'error');
+      return;
+    }
+    if (!playlistLoaded) {
+      setStatus('No playlist loaded yet — add one below.', 'error');
+      return;
+    }
+    const list = player.getPlaylist();
+    if (!list || list.length === 0) {
+      setStatus('Playlist appears empty.', 'error');
+      return;
+    }
+    const idx = Math.floor(Math.random() * list.length);
+    playerWrap.classList.add('visible');
+    player.unMute();
+    player.setVolume(Number(volumeInput.value));
+    player.playVideoAt(idx);
+    setStatus('🎶 Playing a random song from your playlist.', 'good');
+  }
+
+  testBtn.addEventListener('click', () => {
+    primeAutoplay(() => playRandomSong());
+  });
+
+  skipBtn.addEventListener('click', () => playRandomSong());
+  stopSongBtn.addEventListener('click', () => { if (player) player.pauseVideo(); });
+
+  function tick() {
+    remainingSeconds -= 1;
+    if (remainingSeconds <= 0) {
+      remainingSeconds = 0;
+      updateClock();
+      stopTimer();
+      setStatus("Time's up!");
+      playRandomSong();
+      return;
+    }
+    updateClock();
+  }
+
+  function startTimer() {
+    if (running) return;
+    if (remainingSeconds <= 0) remainingSeconds = readDurationFromInputs() || totalSeconds;
+    running = true;
+    startBtn.textContent = 'Pause';
+    primeAutoplay();
+    intervalId = setInterval(tick, 1000);
+    updateClock();
+  }
+
+  function pauseTimer() {
+    running = false;
+    startBtn.textContent = 'Start';
+    clearInterval(intervalId);
+    updateClock();
+  }
+
+  function stopTimer() {
+    running = false;
+    startBtn.textContent = 'Start';
+    clearInterval(intervalId);
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (running) pauseTimer();
+    else startTimer();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    stopTimer();
+    remainingSeconds = readDurationFromInputs();
+    updateClock();
+    setStatus('Timer reset.');
+  });
+
+  remainingSeconds = readDurationFromInputs();
+  updateClock();
+
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.body.appendChild(tag);
+})();
+</script>
+
+</body>
+</html>
