@@ -7,15 +7,17 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕐</text></svg>">
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --panel-2: #1f232c;
-    --border: #2a2f3a;
-    --text: #eef0f4;
-    --muted: #9aa2b1;
-    --accent: #ff4d4d;
-    --accent-2: #4d8dff;
-    --good: #3ddc84;
+    /* Sampled from the header image: near-black, dark brown, warm amber. */
+    --bg: #070504;
+    --panel: #16100a;
+    --panel-2: #241a11;
+    --border: #402a16;
+    --text: #f5e8d7;
+    --muted: #b0906c;
+    --accent: #f0a92c;
+    --accent-2: #c07f2c;
+    --good: #f2c552;
+    --error: #d4562d;
   }
   * { box-sizing: border-box; }
   body {
@@ -35,7 +37,7 @@
     inset: 0;
     z-index: -1;
     overflow: hidden;
-    background: #0a0b0f;
+    background: #050302;
   }
   .blob {
     position: absolute;
@@ -70,7 +72,7 @@
   .card {
     width: 100%;
     max-width: 440px;
-    background: rgba(23, 26, 33, 0.82);
+    background: rgba(22, 16, 10, 0.86);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--border);
@@ -126,7 +128,7 @@
     cursor: pointer;
   }
   .duration-row button:hover { color: var(--text); border-color: var(--accent-2); }
-  .duration-row button.active { color: var(--text); border-color: var(--accent-2); background: #1c2536; }
+  .duration-row button.active { color: var(--text); border-color: var(--accent); background: #38240f; }
   .custom-duration {
     display: flex;
     align-items: center;
@@ -159,8 +161,8 @@
     font-weight: 600;
     cursor: pointer;
   }
-  #startBtn { background: var(--accent); color: white; }
-  #startBtn:hover { background: #ff6666; }
+  #startBtn { background: var(--accent); color: #1c1206; }
+  #startBtn:hover { background: #ffc04d; }
   #resetBtn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
   #resetBtn:hover { border-color: var(--accent-2); }
   .status {
@@ -170,7 +172,7 @@
     color: var(--muted);
     margin: 14px 0 4px;
   }
-  .status.error { color: var(--accent); }
+  .status.error { color: var(--error); }
   .status.good { color: var(--good); }
   .settings-section {
     margin-top: 18px;
@@ -518,7 +520,13 @@
     playerWrap.classList.add('visible');
     player.unMute();
     player.setVolume(DEFAULT_VOLUME);
+    // Starting playback makes the browser scroll the iframe into view, which
+    // would yank the page down past the title. Put the scroll back where it was.
+    const scrollBefore = window.scrollY;
+    const restoreScroll = () => window.scrollTo(0, scrollBefore);
     player.playVideoAt(idx);
+    requestAnimationFrame(restoreScroll);
+    [60, 200, 600, 1200].forEach(ms => setTimeout(restoreScroll, ms));
     setStatus('🎶 Playing a random song from your playlist.', 'good');
     primed = true;
   }
