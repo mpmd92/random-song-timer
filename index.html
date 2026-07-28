@@ -236,9 +236,8 @@
 
   <div class="duration-row" id="presets">
     <button data-sec="300">5m</button>
+    <button data-sec="900">15m</button>
     <button data-sec="3600" class="active">1h</button>
-    <button data-sec="5400">1h30</button>
-    <button data-sec="7200">2h</button>
   </div>
 
   <div class="custom-duration">
@@ -259,12 +258,11 @@
     <div id="player"></div>
     <div class="player-controls">
       <button id="skipBtn">🔀 Another random song</button>
-      <button id="stopSongBtn">⏹ Stop song</button>
     </div>
   </div>
 
   <div class="settings-section">
-    <p class="settings-title">Playlist &amp; volume</p>
+    <p class="settings-title">Playlist</p>
     <div class="settings-body">
       <div>
         <label for="playlistInput">YouTube / YouTube Music playlist link or ID</label>
@@ -273,10 +271,6 @@
       <div class="save-row">
         <button id="saveBtn">Save &amp; load playlist</button>
         <button id="testBtn">Test random song</button>
-      </div>
-      <div>
-        <label for="volumeInput">Volume</label>
-        <input type="range" id="volumeInput" min="0" max="100" value="70">
       </div>
       <div class="hint">
         The playlist must be <strong>Public</strong> or <strong>Unlisted</strong> (not Private) for it to load here.
@@ -300,19 +294,17 @@
   const playlistInput = document.getElementById('playlistInput');
   const saveBtn = document.getElementById('saveBtn');
   const testBtn = document.getElementById('testBtn');
-  const volumeInput = document.getElementById('volumeInput');
   const playerWrap = document.getElementById('playerWrap');
   const skipBtn = document.getElementById('skipBtn');
-  const stopSongBtn = document.getElementById('stopSongBtn');
 
+  const DEFAULT_VOLUME = 70;
   const STORAGE_KEY = 'randomSongTimer.settings.v1';
-  let settings = { playlistId: '', volume: 70 };
+  let settings = { playlistId: '' };
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
     settings = Object.assign(settings, saved);
   } catch (e) {}
 
-  volumeInput.value = settings.volume;
   if (settings.playlistId) playlistInput.value = settings.playlistId;
 
   let remainingMs = 60 * 60 * 1000;
@@ -327,9 +319,9 @@
   let playerReady = false;
   let playlistLoaded = false;
   let primed = false;
+  let autoStartOnLoad = false;
 
   function persist() {
-    settings.volume = Number(volumeInput.value);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }
 
@@ -420,7 +412,10 @@
       events: {
         onReady: () => {
           playerReady = true;
-          if (settings.playlistId) loadPlaylist(settings.playlistId, true);
+          if (settings.playlistId) {
+            autoStartOnLoad = true;
+            loadPlaylist(settings.playlistId, true);
+          }
         },
         onError: () => {
           setStatus('YouTube reported an error loading that video/playlist.', 'error');
@@ -441,6 +436,10 @@
           clearTimeout(failTimer);
           playlistLoaded = true;
           setStatus(`Playlist ready — ${list.length} songs loaded.`, 'good');
+          if (autoStartOnLoad) {
+            autoStartOnLoad = false;
+            playRandomSongOnLoad();
+          }
         }
       }, 400);
       const failTimer = setTimeout(() => {
@@ -462,8 +461,6 @@
     persist();
     loadPlaylist(id, false);
   });
-
-  volumeInput.addEventListener('change', persist);
 
   function primeAutoplay(cb) {
     if (primed) { cb && cb(); return; }
@@ -501,9 +498,30 @@
     const idx = Math.floor(Math.random() * list.length);
     playerWrap.classList.add('visible');
     player.unMute();
-    player.setVolume(Number(volumeInput.value));
+    player.setVolume(DEFAULT_VOLUME);
     player.playVideoAt(idx);
     setStatus('🎶 Playing a random song from your playlist.', 'good');
+    primed = true;
+  }
+
+  // Chrome only allows unprompted audio once a site has earned enough playback
+  // history, so a page-load song can be silently blocked. Detect that and arm
+  // the next click to start it instead of failing quietly.
+  function playRandomSongOnLoad() {
+    playRandomSong();
+    setTimeout(() => {
+      let state = -1;
+      try { state = player.getPlayerState(); } catch (e) {}
+      if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) return;
+      setStatus('Click anywhere to play a random song.');
+      const startOnGesture = () => {
+        document.removeEventListener('click', startOnGesture);
+        document.removeEventListener('keydown', startOnGesture);
+        playRandomSong();
+      };
+      document.addEventListener('click', startOnGesture);
+      document.addEventListener('keydown', startOnGesture);
+    }, 2000);
   }
 
   testBtn.addEventListener('click', () => {
@@ -511,7 +529,6 @@
   });
 
   skipBtn.addEventListener('click', () => playRandomSong());
-  stopSongBtn.addEventListener('click', () => { if (player) player.pauseVideo(); });
 
   // Chrome throttles timers in background tabs, so a fired callback proves nothing
   // about how much time passed. Every check re-reads the wall clock instead.
