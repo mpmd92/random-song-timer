@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Not quite my timer</title>
+<title>Not quite my timer...</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕐</text></svg>">
 <style>
   :root {
@@ -252,7 +252,7 @@
 </div>
 
 <div class="card">
-  <h1>Not quite my timer</h1>
+  <h1>Not quite my timer...</h1>
   <img class="hero" src="whiplash.jpg" alt="A conductor wincing at a stopwatch held out toward him">
 
   <div class="clock" id="clock">1:00:00</div>
@@ -359,7 +359,7 @@
   function updateClock() {
     const secs = Math.ceil(currentRemainingMs() / 1000);
     clockEl.textContent = formatTime(secs);
-    document.title = running ? formatTime(secs) + ' — Not quite my timer' : 'Not quite my timer';
+    document.title = running ? formatTime(secs) + ' — Not quite my timer...' : 'Not quite my timer...';
     if (running && endTime !== null) {
       const at = new Date(endTime);
       endsAtEl.textContent = 'Ends at ' + at.getHours().toString().padStart(2, '0') + ':' +
