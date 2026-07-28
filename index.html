@@ -93,7 +93,15 @@
     font-size: 56px;
     font-weight: 700;
     letter-spacing: 1px;
-    margin: 8px 0 20px;
+    margin: 8px 0 2px;
+  }
+  .ends-at {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    min-height: 16px;
+    margin-bottom: 14px;
   }
   .duration-row {
     display: flex;
@@ -224,6 +232,7 @@
   <h1>🎵 Random Song Timer</h1>
 
   <div class="clock" id="clock">1:00:00</div>
+  <div class="ends-at" id="endsAt"></div>
 
   <div class="duration-row" id="presets">
     <button data-sec="300">5m</button>
@@ -281,6 +290,7 @@
 <script>
 (function () {
   const clockEl = document.getElementById('clock');
+  const endsAtEl = document.getElementById('endsAt');
   const startBtn = document.getElementById('startBtn');
   const resetBtn = document.getElementById('resetBtn');
   const statusEl = document.getElementById('status');
@@ -305,10 +315,13 @@
   volumeInput.value = settings.volume;
   if (settings.playlistId) playlistInput.value = settings.playlistId;
 
-  let totalSeconds = 60 * 60;
-  let remainingSeconds = totalSeconds;
+  let remainingMs = 60 * 60 * 1000;
+  let endTime = null;
   let intervalId = null;
+  let alarmId = null;
   let running = false;
+  let audioCtx = null;
+  let keepAliveOsc = null;
 
   let player = null;
   let playerReady = false;
@@ -327,9 +340,22 @@
     return h > 0 ? h + ':' + m + ':' + sec : m + ':' + sec;
   }
 
+  function currentRemainingMs() {
+    if (running && endTime !== null) return Math.max(0, endTime - Date.now());
+    return Math.max(0, remainingMs);
+  }
+
   function updateClock() {
-    clockEl.textContent = formatTime(remainingSeconds);
-    document.title = running ? formatTime(remainingSeconds) + ' — Random Song Timer' : 'Random Song Timer';
+    const secs = Math.ceil(currentRemainingMs() / 1000);
+    clockEl.textContent = formatTime(secs);
+    document.title = running ? formatTime(secs) + ' — Random Song Timer' : 'Random Song Timer';
+    if (running && endTime !== null) {
+      const at = new Date(endTime);
+      endsAtEl.textContent = 'Ends at ' + at.getHours().toString().padStart(2, '0') + ':' +
+        at.getMinutes().toString().padStart(2, '0') + ':' + at.getSeconds().toString().padStart(2, '0');
+    } else {
+      endsAtEl.textContent = '';
+    }
   }
 
   function setStatus(msg, kind) {
@@ -352,7 +378,7 @@
     minInput.value = Math.floor(sec / 60);
     secInput.value = sec % 60;
     if (!running) {
-      remainingSeconds = readDurationFromInputs();
+      remainingMs = readDurationFromInputs() * 1000;
       updateClock();
     }
   });
@@ -360,7 +386,7 @@
   [minInput, secInput].forEach(inp => inp.addEventListener('change', () => {
     [...presets.children].forEach(b => b.classList.remove('active'));
     if (!running) {
-      remainingSeconds = readDurationFromInputs();
+      remainingMs = readDurationFromInputs() * 1000;
       updateClock();
     }
   }));
@@ -487,41 +513,106 @@
   skipBtn.addEventListener('click', () => playRandomSong());
   stopSongBtn.addEventListener('click', () => { if (player) player.pauseVideo(); });
 
+  // Chrome throttles timers in background tabs, so a fired callback proves nothing
+  // about how much time passed. Every check re-reads the wall clock instead.
   function tick() {
-    remainingSeconds -= 1;
-    if (remainingSeconds <= 0) {
-      remainingSeconds = 0;
-      updateClock();
-      stopTimer();
-      setStatus("Time's up!");
-      playRandomSong();
-      return;
-    }
     updateClock();
+    if (running && currentRemainingMs() <= 0) fireAlarm();
+  }
+
+  function fireAlarm() {
+    clearTimers();
+    running = false;
+    endTime = null;
+    remainingMs = 0;
+    startBtn.textContent = 'Start';
+    updateClock();
+    stopKeepAlive();
+    setStatus("Time's up!");
+    playRandomSong();
+  }
+
+  function clearTimers() {
+    clearInterval(intervalId);
+    clearTimeout(alarmId);
+    intervalId = null;
+    alarmId = null;
+  }
+
+  function scheduleTimers() {
+    clearTimers();
+    intervalId = setInterval(tick, 250);
+    alarmId = setTimeout(tick, currentRemainingMs());
+  }
+
+  // A tab producing audio is exempt from Chrome's heaviest background throttling,
+  // which keeps the alarm firing on time while you work in another app.
+  function startKeepAlive() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      if (keepAliveOsc) return;
+      const gain = audioCtx.createGain();
+      gain.gain.value = 0.0015;
+      keepAliveOsc = audioCtx.createOscillator();
+      keepAliveOsc.frequency.value = 18000;
+      keepAliveOsc.connect(gain).connect(audioCtx.destination);
+      keepAliveOsc.start();
+    } catch (e) {}
+  }
+
+  function stopKeepAlive() {
+    try {
+      if (keepAliveOsc) {
+        keepAliveOsc.stop();
+        keepAliveOsc.disconnect();
+        keepAliveOsc = null;
+      }
+    } catch (e) {}
   }
 
   function startTimer() {
     if (running) return;
-    if (remainingSeconds <= 0) remainingSeconds = readDurationFromInputs() || totalSeconds;
+    let ms = currentRemainingMs();
+    if (ms <= 0) ms = readDurationFromInputs() * 1000;
+    if (ms <= 0) {
+      setStatus('Set a duration above 0 first.', 'error');
+      return;
+    }
+    endTime = Date.now() + ms;
     running = true;
     startBtn.textContent = 'Pause';
     primeAutoplay();
-    intervalId = setInterval(tick, 1000);
+    startKeepAlive();
+    scheduleTimers();
     updateClock();
   }
 
   function pauseTimer() {
+    if (!running) return;
+    remainingMs = currentRemainingMs();
     running = false;
+    endTime = null;
+    clearTimers();
+    stopKeepAlive();
     startBtn.textContent = 'Start';
-    clearInterval(intervalId);
     updateClock();
   }
 
   function stopTimer() {
     running = false;
+    endTime = null;
+    clearTimers();
+    stopKeepAlive();
     startBtn.textContent = 'Start';
-    clearInterval(intervalId);
   }
+
+  // Coming back to the tab re-reads the clock immediately, so a throttled
+  // countdown snaps to the correct value instead of showing a stale one.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) tick();
+  });
+  window.addEventListener('focus', tick);
 
   startBtn.addEventListener('click', () => {
     if (running) pauseTimer();
@@ -530,12 +621,12 @@
 
   resetBtn.addEventListener('click', () => {
     stopTimer();
-    remainingSeconds = readDurationFromInputs();
+    remainingMs = readDurationFromInputs() * 1000;
     updateClock();
     setStatus('Timer reset.');
   });
 
-  remainingSeconds = readDurationFromInputs();
+  remainingMs = readDurationFromInputs() * 1000;
   updateClock();
 
   const tag = document.createElement('script');
