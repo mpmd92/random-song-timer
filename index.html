@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Not quite my timer...</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕐</text></svg>">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#070504">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root {
     /* Sampled from the header image: near-black, dark brown, warm amber. */
@@ -676,6 +681,14 @@
   const tag = document.createElement('script');
   tag.src = 'https://www.youtube.com/iframe_api';
   document.body.appendChild(tag);
+
+  // Installable as an app on Android; the worker only caches the shell so the
+  // page still opens without a connection.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 })();
 </script>
 
