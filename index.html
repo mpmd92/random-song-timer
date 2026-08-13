@@ -285,6 +285,8 @@
 
   <div class="status" id="status">Add a YouTube playlist below, then hit Start.</div>
 
+  <audio id="keepAlive" src="keepalive.wav" loop preload="auto" playsinline></audio>
+
   <div class="player-wrap" id="playerWrap">
     <div id="player"></div>
     <div class="player-controls">
@@ -338,8 +340,7 @@
   let intervalId = null;
   let alarmId = null;
   let running = false;
-  let audioCtx = null;
-  let keepAliveOsc = null;
+  const keepAliveAudio = document.getElementById('keepAlive');
 
   let player = null;
   let playerReady = false;
@@ -578,6 +579,7 @@
     updateClock();
     stopKeepAlive();
     setStatus("Time's up!");
+    notifyTimeUp();
     playRandomSong();
   }
 
@@ -594,28 +596,57 @@
     alarmId = setTimeout(tick, currentRemainingMs());
   }
 
-  // A tab producing audio is exempt from Chrome's heaviest background throttling,
-  // which keeps the alarm firing on time while you work in another app.
+  // Android freezes backgrounded pages, which would stop the countdown dead when
+  // the screen locks. A page with a real <audio> element playing is treated as an
+  // active media session and keeps running, so the alarm still fires on time.
+  // The clip is a 50 Hz tone at about -40 dBFS: below what a phone speaker can
+  // reproduce, but not digital silence, which the browser would ignore.
   function startKeepAlive() {
     try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      if (keepAliveOsc) return;
-      const gain = audioCtx.createGain();
-      gain.gain.value = 0.0015;
-      keepAliveOsc = audioCtx.createOscillator();
-      keepAliveOsc.frequency.value = 18000;
-      keepAliveOsc.connect(gain).connect(audioCtx.destination);
-      keepAliveOsc.start();
+      keepAliveAudio.volume = 1;
+      const played = keepAliveAudio.play();
+      if (played && played.catch) played.catch(() => {});
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'Timer running',
+          artist: 'Not quite my timer...',
+          artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }]
+        });
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.setActionHandler('pause', () => pauseTimer());
+        navigator.mediaSession.setActionHandler('play', () => startTimer());
+      }
     } catch (e) {}
   }
 
   function stopKeepAlive() {
     try {
-      if (keepAliveOsc) {
-        keepAliveOsc.stop();
-        keepAliveOsc.disconnect();
-        keepAliveOsc = null;
+      keepAliveAudio.pause();
+      keepAliveAudio.currentTime = 0;
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+    } catch (e) {}
+  }
+
+  // If the phone is locked or you're in another app, the song alone is easy to
+  // miss, so the alarm also raises a real system notification.
+  function notifyTimeUp() {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const opts = {
+        body: 'Playing a random song from your playlist.',
+        icon: 'icon-192.png',
+        badge: 'icon-192.png',
+        vibrate: [200, 100, 200, 100, 400],
+        tag: 'nqmt-timeup',
+        renotify: true,
+        requireInteraction: true
+      };
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready
+          .then((reg) => reg.showNotification("Time's up", opts))
+          .catch(() => { new Notification("Time's up", opts); });
+      } else {
+        new Notification("Time's up", opts);
       }
     } catch (e) {}
   }
@@ -633,6 +664,10 @@
     startBtn.textContent = 'Pause';
     primeAutoplay();
     startKeepAlive();
+    // Asked here because Start is a user gesture, which the permission prompt needs.
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
     scheduleTimers();
     updateClock();
   }
